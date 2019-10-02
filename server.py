@@ -153,14 +153,18 @@ def call(img_aux):
 
     return identification, float(time.time()-start)
 
-
 @app.route('/api/test', methods=['POST'])
 def test():
-    req = request
-    nparr = np.fromstring(req.data, np.uint8)
-    img = cv2.imdecode(nparr, cv.IMREAD_GRAYSCALE)
+
+    data = request.get_json()
+
+    #nparr = np.fromstring(req.data, np.uint8)
+    img = cv.imread("database/" + str(data["image_dir"]), cv.IMREAD_GRAYSCALE)
+
+    # img = cv2.imdecode(nparr, cv.IMREAD_GRAYSCALE)
     #create()
     identification, tempo=call(img)
+
 
     ans = {'message': 'image received, size={}x{}'.format(img.shape[1], img.shape[0]), 'time': tempo}
     ans = jsonpickle.encode(ans)
