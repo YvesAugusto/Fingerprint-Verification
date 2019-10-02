@@ -110,8 +110,18 @@ def get_deors(img):
     orb = cv.ORB_create()
     # Compute deors
     _, des = orb.compute(img, keypoints)
-    return (keypoints, des);
+    return (keypoints, des)
 
+def create():
+    for i in range(1,17):
+        print(i)
+        img_name = str(i)+"_1.png"
+        img1 = cv.imread("database/" + img_name, cv.IMREAD_GRAYSCALE)
+        kp1, des1 = get_deors(img1)
+        des1 = des1.astype(float)
+        feature = Feature(list(des1))
+        db.session.add(feature)
+        db.session.commit()
 
 def call(img_aux):
     # img_name = "1_1.png"
@@ -119,67 +129,40 @@ def call(img_aux):
     # kp1, des1l = get_deors(img1)
     # exit(1)
     # print(type(des1l[0][0]))
-
-    des1=Feature.query.get(2).vector
-    des1=np.asarray(des1)
-    des1 = des1.astype(int)
-    """
-    des1=des1.astype(float)
-    feature = Feature(list(des1))
-    db.session.add(feature)
-    db.session.commit()
-    """
-
-    """"
-    des1=Feature.query.filter_by(id=1).first().vector
-    des1=np.array(des1)
-    print(des1,des1.shape)
-    """
-
-    timev = []
     start = time.time()
-    # img2 = cv.imread("database/" + img_aux, cv.IMREAD_GRAYSCALE)
     kp2, des2 = get_deors(img_aux)
-    print(des1.shape)
-    des1 = np.array(des1,dtype=np.uint8)
-    des2 = np.array(des2,dtype=np.uint8)
+    des2 = np.array(des2, dtype=np.uint8)
+    identification=np.zeros(17)
+    for i in range(1, 17):
+        des1=Feature.query.get(i).vector
+        des1=np.asarray(des1)
+        des1 = np.array(des1,dtype=np.uint8)
+        bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+        matches = sorted(bf.match(des1, des2), key=lambda match: match.distance)
+        score = 0
+        for match in matches:
+            score += match.distance
+        score_threshold = 34.1
+        print(score / len(matches))
+        if score / len(matches) < score_threshold:
+            print("True")
+            identification[i]=1
+        else:
+            print("False")
+            identification[i]=0
 
-
-    #des2=np.array(des2)
-    #print(des2,des2.shape)
-    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-    matches = sorted(bf.match(des1, des2), key=lambda match: match.distance)
-    score = 0;
-    for match in matches:
-        score += match.distance
-    score_threshold = 33
-    end = time.time()
-    if score / len(matches) < score_threshold:
-        print("True")
-    else:
-        print("False")
-
-    timev.append(float(end - start))
-    # print(str(end - start) + " segundos ---- matching")
-
-    # print(np.std(timev))
-    return score / len(matches) < score_threshold
+    return identification, float(time.time()-start)
 
 
 @app.route('/api/test', methods=['POST'])
 def test():
-    s = time.time()
     req = request
     nparr = np.fromstring(req.data, np.uint8)
     img = cv2.imdecode(nparr, cv.IMREAD_GRAYSCALE)
-    flag = call(img)
-    t = time.time() - s
-    id = 0
-    if (flag == 1):
-        id = 1
-    else:
-        id = 'User has not id 1'
-    ans = {'message': 'image received, size={}x{}'.format(img.shape[1], img.shape[0]), 'id': id, 'time': t}
+    #create()
+    identification, tempo=call(img)
+
+    ans = {'message': 'image received, size={}x{}'.format(img.shape[1], img.shape[0]), 'time': tempo}
     ans = jsonpickle.encode(ans)
     return Response(response=ans, status=200, mimetype="application/json")
 
