@@ -7,7 +7,7 @@ import cv2
 from flask_sqlalchemy import SQLAlchemy
 
 # from sqlalchemy.dialects.postgresql import ARRAY
-
+from sqlalchemy import PrimaryKeyConstraint
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:senha098@127.0.0.1:5432/fingerprint'
@@ -29,9 +29,11 @@ class User(db.Model):
 
 class Feature(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    label = db.Column(db.Integer)
     vector = db.Column(db.ARRAY(db.Float, dimensions=2))
 
-    def __init__(self, vector):
+    def __init__(self,label,vector):
+        self.label=label
         self.vector = vector
 
 
@@ -113,15 +115,17 @@ def get_deors(img):
     return (keypoints, des)
 
 def create():
-    for i in range(1,17):
-        print(i)
-        img_name = str(i)+"_1.png"
-        img1 = cv.imread("database/" + img_name, cv.IMREAD_GRAYSCALE)
-        kp1, des1 = get_deors(img1)
-        des1 = des1.astype(float)
-        feature = Feature(list(des1))
-        db.session.add(feature)
-        db.session.commit()
+
+    for j in range(1,17):
+        for i in range(9,49):
+            img_name = str(j)+"_"+str(i)+".png"
+            img1 = cv.imread("database/" + img_name, cv.IMREAD_GRAYSCALE)
+            kp1, des1 = get_deors(img1)
+            des1 = des1.astype(float)
+            feature = Feature(j,list(des1))
+            db.session.add(feature)
+            db.session.commit()
+            print(j,i)
 
 def call(img_aux):
     # img_name = "1_1.png"
@@ -159,14 +163,14 @@ def test():
     data = request.get_json()
 
     #nparr = np.fromstring(req.data, np.uint8)
-    img = cv.imread("database/" + str(data["image_dir"]), cv.IMREAD_GRAYSCALE)
+    #img = cv.imread("database/" + str(data["image_dir"]), cv.IMREAD_GRAYSCALE)
 
     # img = cv2.imdecode(nparr, cv.IMREAD_GRAYSCALE)
-    #create()
-    identification, tempo=call(img)
+    create()
+    #identification, tempo=call(img)
 
 
-    ans = {'message': 'image received, size={}x{}'.format(img.shape[1], img.shape[0]), 'time': tempo}
+    ans = {'message': 'image received, size={}x{}'.format(img.shape[1], img.shape[0])} #, 'time': tempo}
     ans = jsonpickle.encode(ans)
     return Response(response=ans, status=200, mimetype="application/json")
 
