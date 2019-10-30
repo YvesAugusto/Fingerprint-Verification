@@ -9,10 +9,10 @@ import cnn
 import matplotlib.pyplot as plt
 import numpy as np
 import time
+
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
-db=SQLAlchemy(app)
-
+db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 manager = Manager(app)
@@ -22,18 +22,56 @@ manager.add_command('runserver', server)
 
 @app.route('/conv', methods=['POST'])
 def conv():
-    net=cnn.load_model()
-    img = np.reshape(cv.imread("database/6_7.png", cv.IMREAD_GRAYSCALE),(1,338,248,1))
-    s = time.time()
-    p=net.predict(img, verbose=0).argmax()
-    e = time.time()
-    print(str(p) + ", calculated in " + str(e - s) + " seconds")
-    return  Response(jsonpickle.encode('Ok!'))
+    req=request.get_json()
+    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+    data = []
+    feature = []
+    for i in range(1, 17):
+        for j in range(1, 49):
+            img = cv.imread("database/" + str(i) + "_" + str(j) + ".png", cv.IMREAD_GRAYSCALE)
+            data.append(img)
+
+    for i in range(1,17):
+            img = cv.imread("database/" + str(i) + "_1"+ ".png", cv.IMREAD_GRAYSCALE)
+            kp, des = getFeature.getFeature(img)
+            feature.append(des)
+
+    timeCount=[]
+    net = cnn.load_model()
+    img = np.reshape(cv.imread("database/"+str(req["img"]), cv.IMREAD_GRAYSCALE), (1, 338, 248, 1))
+    """
+    p = net.predict(img, verbose=0).max()
+    p2 = net.predict(img, verbose=0).argmax()
+    print(p)
+    print(p2)
+    exit(1)
+    """
+
+    for ft in feature:
+        img=np.reshape(img,(1,338,248,1))
+        s = time.time()
+        p = net.predict(img, verbose=0).argmax()
+        img = np.reshape(img, (338, 248))
+        kp, des = getFeature.getFeature(img)
+        matches = sorted(bf.match(ft, des), key=lambda match: match.distance)
+        score = 0
+        for match in matches:
+            score += match.distance
+        score /= len(matches)
+        print(score)
+        e = time.time()
+        timeCount.append(e-s)
+    timeCount=np.array(timeCount)
+
+    print(timeCount.mean())
+    print(str(p+1) + ", calculated in " + str(e - s) + " seconds")
+    return Response(jsonpickle.encode('Ok!'))
+
 
 @app.route('/', methods=['POST'])
 def index():
-    req=request.get_json()
-    #bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+    req = request.get_json()
+    # bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
     """
     desc=[]
     for i in range(1,17):
@@ -47,14 +85,14 @@ def index():
     np.savetxt('desc', desc)
     exit(1)
     """
-    #kp1,des1=getFeature.getFeature(cv.imread("database/" + str(req["img2"]), cv.IMREAD_GRAYSCALE))
+    # kp1,des1=getFeature.getFeature(cv.imread("database/" + str(req["img2"]), cv.IMREAD_GRAYSCALE))
 
     img = cv.imread(str(req["img"]), cv.IMREAD_GRAYSCALE)
     print(img)
     exit(1)
     s = time.time()
     kp, des = getFeature.getFeature(img)
-    print(str(time.time()-s))
+    print(str(time.time() - s))
     matches = sorted(bf.match(des, des1), key=lambda match: match.distance)
     score = 0
     for match in matches:
@@ -69,8 +107,8 @@ def index():
             score += match.distance
         score /= len(matches)
         print(score)
-    
+
     """
     f = time.time()
-    print(str(f-s))
+    print(str(f - s))
     return Response(jsonpickle.encode("Ok!"))
