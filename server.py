@@ -33,8 +33,9 @@ def conv():
 
     for i in range(1,17):
             img = cv.imread("database/" + str(i) + "_1"+ ".png", cv.IMREAD_GRAYSCALE)
-            kp, des = getFeature.getFeature(img)
+            kp, des = cnn.getFeature(img)
             feature.append(des)
+            print(i)
 
     timeCount=[]
     net = cnn.load_model()
@@ -46,25 +47,27 @@ def conv():
     print(p2)
     exit(1)
     """
-
+    f=[]
     for ft in feature:
         img=np.reshape(img,(1,338,248,1))
         s = time.time()
         p = net.predict(img, verbose=0).argmax()
         img = np.reshape(img, (338, 248))
-        kp, des = getFeature.getFeature(img)
+        kp, des = cnn.getFeature(img)
         matches = sorted(bf.match(ft, des), key=lambda match: match.distance)
         score = 0
         for match in matches:
             score += match.distance
         score /= len(matches)
         print(score)
+        f.append(score)
         e = time.time()
         timeCount.append(e-s)
     timeCount=np.array(timeCount)
-
+    f=np.array(f)
     print(timeCount.mean())
     print(str(p+1) + ", calculated in " + str(e - s) + " seconds")
+    print(str(f.argmin() + 1))
     return Response(jsonpickle.encode('Ok!'))
 
 
