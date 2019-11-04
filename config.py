@@ -1,0 +1,3 @@
+SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:senha098@127.0.0.1:5432/fingerprint'
+SQLALCHEMY_TRACK_MODIFICATIONS = True
+DEBUG = True
