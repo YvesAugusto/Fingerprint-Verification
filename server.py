@@ -20,26 +20,104 @@ manager.add_command('db', MigrateCommand)
 server = Server(host="0.0.0.0", port=5000)
 manager.add_command('runserver', server)
 
+class ImprovedFeature(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    label = db.Column(db.Integer)
+    vector = db.Column(db.ARRAY(db.Float, dimensions=2))
+
+    def __init__(self, label, vector):
+        self.label = label
+        self.vector = vector
+
+
+class Feature(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    label = db.Column(db.Integer)
+    vector = db.Column(db.ARRAY(db.Float, dimensions=2))
+
+    def __init__(self,label,vector):
+        self.label=label
+        self.vector = vector
+
+def matching(f1,f2,bf):
+    #print(len(f1), len(f1[0]))
+    #print(len(f2), len(f2[0]))
+    matches = sorted(bf.match(f1, f2), key=lambda match: match.distance)
+    score = 0
+    for match in matches:
+        score += match.distance
+    score /= len(matches)
+    return score
+
+def get_feature_from_db():
+    des1=[]
+    des2=[]
+    for j in range(1,769):
+        des = Feature.query.get(j).vector
+        des= np.asarray(des)
+        des = np.array(des, dtype=np.uint8)
+        des1.append(des)
+        des = ImprovedFeature.query.get(j).vector
+        des = np.asarray(des)
+        des = np.array(des, dtype=np.uint8)
+        des2.append(des)
+
+    ft=np.array(des1)
+    imp_ft=np.array(des2)
+    print(ft.shape)
+    print(imp_ft.shape)
+
+    return ft, imp_ft
+
+@app.route('/create',methods=['POST'])
+def create():
+
+    for j in range(1,17):
+        for i in range(1,49):
+            img_name = str(j)+"_"+str(i)+".png"
+            img1 = np.array(cv.imread("database/" + img_name, cv.IMREAD_GRAYSCALE))
+            kp1, des1 = getFeature.getFeature(img1)
+            kp2,des2=cnn.getFeature(img1)
+            des1 = des1.astype(float)
+            des2 = des2.astype(float)
+            feature = ImprovedFeature(j,list(des1))
+            impfeature=Feature(j,list(des2))
+            db.session.add(feature)
+            db.session.commit()
+            db.session.add(impfeature)
+            db.session.commit()
+            print(j,i)
+
 @app.route('/conv', methods=['POST'])
 def conv():
     req=request.get_json()
+    img = cv.imread("database/"+str(req["img"]), cv.IMREAD_GRAYSCALE)
+    img = np.resize(img, (338, 248))
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-    data = []
-    feature = []
-    for i in range(1, 17):
-        for j in range(1, 49):
-            img = cv.imread("database/" + str(i) + "_" + str(j) + ".png", cv.IMREAD_GRAYSCALE)
-            data.append(img)
-
-    for i in range(1,17):
-            img = cv.imread("database/" + str(i) + "_1"+ ".png", cv.IMREAD_GRAYSCALE)
-            kp, des = cnn.getFeature(img)
-            feature.append(des)
-            print(i)
+    feature, imp_feature=get_feature_from_db()
 
     timeCount=[]
     net = cnn.load_model()
-    img = np.reshape(cv.imread("database/"+str(req["img"]), cv.IMREAD_GRAYSCALE), (1, 338, 248, 1))
+    img=np.reshape(img,(1,338,248,1))
+    p = net.predict(img, verbose=0)
+    img = np.reshape(img, (338, 248))
+    p2=p.max()
+    p=p.argmax()
+    print(p2, p)
+    kp,desc=cnn.getFeature(img)
+    #print(desc)
+    #desc=np.asarray(desc)
+    #print(desc)
+    #kp,desc = np.array(desc, dtype=np.uint8)
+    c=0
+    for i in range(8):
+        v=feature[(48*p)+i]
+        if(matching(desc,v,bf) < 35):
+            c+=1
+    if(c>=5):
+        print("Yes", c)
+    else:
+        print("No", c)
     """
     p = net.predict(img, verbose=0).max()
     p2 = net.predict(img, verbose=0).argmax()
@@ -47,27 +125,30 @@ def conv():
     print(p2)
     exit(1)
     """
-    f=[]
+    """
+    kp, des = getFeature.getFeature(img)
     for ft in feature:
-        img=np.reshape(img,(1,338,248,1))
-        s = time.time()
-        p = net.predict(img, verbose=0).argmax()
-        img = np.reshape(img, (338, 248))
-        kp, des = cnn.getFeature(img)
-        matches = sorted(bf.match(ft, des), key=lambda match: match.distance)
-        score = 0
-        for match in matches:
-            score += match.distance
-        score /= len(matches)
-        print(score)
-        f.append(score)
-        e = time.time()
-        timeCount.append(e-s)
-    timeCount=np.array(timeCount)
-    f=np.array(f)
-    print(timeCount.mean())
-    print(str(p+1) + ", calculated in " + str(e - s) + " seconds")
-    print(str(f.argmin() + 1))
+        sc=[]
+        #times = []
+        for ftr in ft:
+            #s=time.time()
+            img=np.reshape(img,(1,338,248,1))
+            p = net.predict(img, verbose=0).argmax()
+            img = np.reshape(img, (338, 248))
+            matches = sorted(bf.match(ftr, des), key=lambda match: match.distance)
+            score = 0
+            for match in matches:
+                score += match.distance
+            score /= len(matches)
+            sc.append(score)
+            #e=time.time()
+            #times.append(e-s)
+        #timeCount.append(times)
+        f.append(sc)
+
+    print(f)
+    #print(timeCount)
+    """
     return Response(jsonpickle.encode('Ok!'))
 
 
@@ -91,8 +172,9 @@ def index():
     # kp1,des1=getFeature.getFeature(cv.imread("database/" + str(req["img2"]), cv.IMREAD_GRAYSCALE))
 
     img = cv.imread(str(req["img"]), cv.IMREAD_GRAYSCALE)
+    img=np.reshape(img,(338,248))
     print(img)
-    exit(1)
+
     s = time.time()
     kp, des = getFeature.getFeature(img)
     print(str(time.time() - s))
