@@ -39,6 +39,15 @@ class Feature(db.Model):
         self.label=label
         self.vector = vector
 
+class Scores(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    label = db.Column(db.Integer)
+    vector = db.Column(db.ARRAY(db.Float, dimensions=2))
+
+    def __init__(self,label,vector):
+        self.label=label
+        self.vector = vector
+
 def matching(f1,f2,bf):
     #print(len(f1), len(f1[0]))
     #print(len(f2), len(f2[0]))
@@ -69,6 +78,62 @@ def get_feature_from_db():
 
     return ft, imp_ft
 
+def get_label_score(feature,i,bf):
+    feature=feature[i*48:48*(i+1)]
+    original=feature[0:8]
+    train=feature[8:38]
+    test=feature[38:48]
+    matches=[]
+    for tr in train:
+        v=[]
+        for orig in original:
+            v.append(matching(tr,orig,bf))
+        matches.append(v)
+
+    matches=np.array(matches)
+    mean=matches.sum(axis=0)/len(matches)
+    maxx=matches.max(axis=0)
+    #print(mean)
+    #print(maxx)
+    #print((mean+maxx)/2)
+    return mean
+
+def testing(scores,feature,i,bf):
+    global acc
+    ft=feature[48*i:48*(i+1)]
+    ft=ft[0:8]
+    dec=[]
+    for k in range(16):
+        if(k==i):
+            print("--------- Same Class ----------")
+            continue
+        else:
+            x=feature[48*k:48*(k+1)]
+            acc=0
+            for j in range(8,48):
+                c=0
+                scs=[]
+                for l in range(8):
+                    aux=matching(x[j], ft[l], bf)
+                    scs.append(aux)
+                    if(aux < scores[l]):
+                        c+=1
+
+
+                if (c >= 6):
+                    print("Yes", c, scs)
+                else:
+                    print("No", c, scs)
+                    acc+=1
+        acc=acc/40
+        print(k)
+        print("------------ " + "False Negative Rate for this class: " + str(1-acc) + " -----------------")
+        dec.append(1-acc)
+        time.sleep(1.5)
+    dec = np.array(dec)
+    print(dec.mean())
+    return dec
+
 @app.route('/create',methods=['POST'])
 def create():
 
@@ -95,7 +160,27 @@ def conv():
     img = np.resize(img, (338, 248))
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
     feature, imp_feature=get_feature_from_db()
+    scores=get_label_score(feature,15,bf)
+    scores+=1.5
+    dec=[]
+    decc=[]
+    for i in range(16):
+        print()
+        print()
+        print("----------------------- Testando falsos positivos com a classe " + str(i+1) + " ------------------------")
+        print()
+        print()
+        x=testing(scores, feature, i, bf)
+        decc.append(x)
+        dec.append(x.mean())
+        time.sleep(2.9)
 
+    print(dec)
+    dec=np.array(dec)
+    print(dec.mean())
+    print(decc)
+
+    exit(1)
     timeCount=[]
     net = cnn.load_model()
     img=np.reshape(img,(1,338,248,1))
@@ -110,14 +195,17 @@ def conv():
     #print(desc)
     #kp,desc = np.array(desc, dtype=np.uint8)
     c=0
+    scs=[]
     for i in range(8):
         v=feature[(48*p)+i]
-        if(matching(desc,v,bf) < 35):
+        x=matching(desc, v, bf)
+        scs.append(x)
+        if(x < scores[i]):
             c+=1
     if(c>=5):
-        print("Yes", c)
+        print("Yes", c, scs)
     else:
-        print("No", c)
+        print("No", c, scs)
     """
     p = net.predict(img, verbose=0).max()
     p2 = net.predict(img, verbose=0).argmax()
@@ -197,3 +285,4 @@ def index():
     f = time.time()
     print(str(f - s))
     return Response(jsonpickle.encode("Ok!"))
+
