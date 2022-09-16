@@ -17,7 +17,7 @@ Jinja2==2.10.1
 jsonpickle==1.2
 kiwisolver==1.1.0
 legacy==0.1.6
-Mako==1.1.0
+Mako==1.2.2
 MarkupSafe==1.1.1
 matplotlib==3.1.1
 mysqlclient==1.4.4
